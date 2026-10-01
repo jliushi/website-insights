@@ -1,0 +1,66 @@
+name: Weekly update
+
+on:
+  schedule:
+    - cron: '23 4 * * 3'   # every Wednesday 04:23 UTC
+  workflow_dispatch:
+    inputs:
+      scan:
+        description: 'Run the data scan (otherwise only rebuild the site)'
+        type: boolean
+        default: true
+  push:
+    branches: [main]
+    paths: ['generator/**', 'lib/**', 'config.mjs', 'package-lock.json']
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node test/test.mjs
+
+      - name: Scan
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.scan)
+        run: node scanner/scan.mjs
+
+      - name: Commit data
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.scan)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet && exit 0
+          git commit -m "Data update $(date -u +%F)"
+          for i in 1 2 3; do git pull --rebase && git push && break; sleep 5; done
+
+      # Nothing to publish until the first scan has produced data.
+      - run: node generator/build.mjs
+        if: hashFiles('data/meta.json') != ''
+      - uses: actions/upload-pages-artifact@v3
+        if: hashFiles('data/meta.json') != ''
+        with:
+          path: dist
+      - id: deploy
+        if: hashFiles('data/meta.json') != ''
+        uses: actions/deploy-pages@v4

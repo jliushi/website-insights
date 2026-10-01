@@ -1,0 +1,23 @@
+{
+  "name": "website-insights-site",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Static site: popularity rank, domain age and tech stack of the world's top websites, rebuilt weekly from free public data.",
+  "scripts": {
+    "scan": "node scanner/scan.mjs",
+    "build": "node generator/build.mjs",
+    "serve": "node generator/serve.mjs",
+    "test": "node test/test.mjs"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0"
+  },
+  "devDependencies": {
+    "puppeteer": "^25.12.0"
+  }
+}
